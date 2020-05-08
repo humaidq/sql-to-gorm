@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"reflect"
 	"strings"
 
 	"github.com/xwb1989/sqlparser"
@@ -24,9 +23,6 @@ func main() {
 		panic(err)
 		// Do something with the err
 	}
-	fmt.Println(stmt)
-
-	fmt.Println(reflect.TypeOf(stmt))
 
 	// Otherwise do something with stmt
 	switch stmt := stmt.(type) {
@@ -47,11 +43,20 @@ func main() {
 			// gorm tags
 			var gormTags strings.Builder
 			gormTags.WriteString("type:" + col.Type.Type)
-			if col.Type.Length != nil {
+			if len(col.Type.EnumValues) > 0 {
+				gormTags.WriteRune('(')
+				for i, en := range col.Type.EnumValues {
+					gormTags.WriteString(en)
+					if i != len(col.Type.EnumValues)-1 {
+						gormTags.WriteRune(',')
+					}
+				}
+				gormTags.WriteRune(')')
+			} else if col.Type.Length != nil {
 				gormTags.WriteString("(" + string(col.Type.Length.Val) + ")")
 			}
-			gormTags.WriteRune(';')
-			gormTags.WriteString("column:" + col.Name.String())
+
+			gormTags.WriteString(";column:" + col.Name.String())
 			if col.Type.Autoincrement {
 				gormTags.WriteString(";AUTO_INCREMENT")
 			}
@@ -69,9 +74,7 @@ func main() {
 			goName := strings.Title(col.Name.String())
 			var goType string
 			switch col.Type.Type {
-			case "varchar":
-				goType = "string"
-			case "text":
+			case "varchar", "text", "enum":
 				goType = "string"
 			case "int":
 				goType = "int64"
@@ -79,7 +82,7 @@ func main() {
 				goType = "int"
 			case "double":
 				goType = "float64"
-			case "date":
+			case "date", "datetime":
 				goType = "time.Time"
 			case "blob":
 				goType = "[]byte"
