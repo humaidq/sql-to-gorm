@@ -17,6 +17,7 @@ type SQLTable struct {
 type SQLColumn struct {
 	Name, Type    string
 	IsPrimaryKey  bool
+	IsUnique      bool
 	Length        string
 	EnumValues    []string
 	AutoIncrement bool
@@ -26,7 +27,7 @@ type SQLColumn struct {
 
 func (t *SQLTable) ToGorm() string {
 	var str strings.Builder
-	str.WriteString(fmt.Sprintf("type %s struct {\n", t.Name))
+	str.WriteString(fmt.Sprintf("type %s struct {\n", strings.Title(t.Name)))
 	for _, col := range t.Cols {
 		str.WriteRune('\t')
 		// Go variable name and type
@@ -40,12 +41,14 @@ func (t *SQLTable) ToGorm() string {
 			goType = "int64"
 		case "tinyint":
 			goType = "int"
-		case "double":
+		case "double", "float":
 			goType = "float64"
-		case "date", "datetime":
-			goType = "time.Time"
+		case "date", "datetime", "time", "timestamp":
+			goType = "string"
 		case "blob":
 			goType = "[]byte"
+		default:
+			goType = "UNKNOWN_TYPE"
 		}
 		str.WriteString(" " + goType)
 		str.WriteString(" `gorm:\"")
@@ -79,6 +82,9 @@ func (t *SQLTable) ToGorm() string {
 		if col.IsPrimaryKey {
 			str.WriteString(";PRIMARY_KEY")
 		}
+		if col.IsUnique {
+			str.WriteString(";UNIQUE")
+		}
 
 		// close variable tag
 		str.WriteString("\"`\n")
@@ -104,15 +110,24 @@ func main() {
 	// Otherwise do something with stmt
 	switch stmt := stmt.(type) {
 	case *sqlparser.DDL:
+		if stmt.TableSpec == nil {
+			fmt.Println("Cannot get table spec")
+			break
+		}
 		var table SQLTable
 
+		var uniqueKeys []string
 		var primaryKey string
 		// Go through table spec
 		for _, ind := range stmt.TableSpec.Indexes {
 			switch ind.Info.Type {
 			case "primary key":
 				primaryKey = ind.Columns[0].Column.String()
-			case "key":
+				//case "key":
+			case "unique key":
+				uniqueKeys = append(uniqueKeys, ind.Columns[0].Column.String())
+			default:
+				fmt.Println("unknown type ", ind.Info.Type)
 			}
 		}
 
@@ -132,6 +147,12 @@ func main() {
 				scol.Default = string(col.Type.Default.Val)
 			}
 			scol.IsPrimaryKey = (col.Name.String() == primaryKey)
+			for _, k := range uniqueKeys {
+				if scol.Name == k {
+					scol.IsUnique = true
+					break
+				}
+			}
 
 			table.Cols = append(table.Cols, scol)
 		}
