@@ -25,6 +25,75 @@ type SQLColumn struct {
 	Default       string
 }
 
+func (t *SQLTable) ToXorm() string {
+	var str strings.Builder
+	str.WriteString(fmt.Sprintf("type %s struct {\n", strings.Title(t.Name)))
+	for _, col := range t.Cols {
+		str.WriteRune('\t')
+		// Go variable name and type
+		str.WriteString(strings.Title(col.Name))
+
+		var goType string
+		switch col.Type {
+		case "varchar", "text", "enum":
+			goType = "string"
+		case "int":
+			goType = "int64"
+		case "tinyint":
+			goType = "int"
+		case "double", "float":
+			goType = "float64"
+		case "date", "datetime", "time", "timestamp":
+			goType = "string"
+		case "blob":
+			goType = "[]byte"
+		default:
+			goType = "UNKNOWN_TYPE"
+		}
+		str.WriteString(" " + goType)
+		str.WriteString(" `xorm:\"")
+
+		// Type
+		str.WriteString(col.Type)
+
+		// Bracketed type metadata
+		if len(col.EnumValues) > 0 {
+			str.WriteRune('(')
+			for i, en := range col.EnumValues {
+				str.WriteString(en)
+				if i != len(col.EnumValues)-1 {
+					str.WriteRune(',')
+				}
+			}
+			str.WriteRune(')')
+		} else if len(col.Length) > 0 {
+			str.WriteString("(" + col.Length + ")")
+		}
+
+		if col.AutoIncrement {
+			str.WriteString(" autoincr")
+		}
+		if col.NotNull {
+			str.WriteString(" not null")
+		}
+		if len(col.Default) > 0 {
+			str.WriteString(" default '" + col.Default + "'")
+		}
+		if col.IsPrimaryKey {
+			str.WriteString(" pk")
+		}
+		if col.IsUnique {
+			str.WriteString(" unique")
+		}
+		str.WriteString(" '" + col.Name + "'")
+
+		// close variable tag
+		str.WriteString("\"`\n")
+	}
+	str.WriteString("}")
+	return str.String()
+}
+
 func (t *SQLTable) ToGorm() string {
 	var str strings.Builder
 	str.WriteString(fmt.Sprintf("type %s struct {\n", strings.Title(t.Name)))
@@ -156,6 +225,6 @@ func main() {
 
 			table.Cols = append(table.Cols, scol)
 		}
-		fmt.Println(table.ToGorm())
+		fmt.Println(table.ToXorm())
 	}
 }
