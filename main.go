@@ -44,7 +44,7 @@ func (t *SQLTable) ToXorm() string {
 		case "double", "float":
 			goType = "float64"
 		case "date", "datetime", "time", "timestamp":
-			goType = "string"
+			goType = "time.Time"
 		case "blob":
 			goType = "[]byte"
 		default:
@@ -167,12 +167,15 @@ func main() {
 		fmt.Println("<program> <sql file>")
 		return
 	}
+	fmt.Fprintf(os.Stderr, "Converting %s\n", os.Args[1])
 	cont, err := ioutil.ReadFile(os.Args[1])
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error reading file: %s\n", os.Args[1])
 		panic(err)
 	}
 	stmt, err := sqlparser.Parse(string(cont))
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error parsing file: %s\n", os.Args[1])
 		panic(err)
 	}
 
@@ -180,7 +183,7 @@ func main() {
 	switch stmt := stmt.(type) {
 	case *sqlparser.DDL:
 		if stmt.TableSpec == nil {
-			fmt.Println("Cannot get table spec")
+			fmt.Fprintln(os.Stderr, "Canont get table spec")
 			break
 		}
 		var table SQLTable
@@ -196,7 +199,7 @@ func main() {
 			case "unique key":
 				uniqueKeys = append(uniqueKeys, ind.Columns[0].Column.String())
 			default:
-				fmt.Println("unknown type ", ind.Info.Type)
+				fmt.Fprintln(os.Stderr, "unknown type ", ind.Info.Type)
 			}
 		}
 
